@@ -1,4 +1,5 @@
 ﻿using Discord;
+using Discord.WebSocket;
 using FagrimBot.Core.Managers;
 using System;
 using System.Collections.Generic;
@@ -14,14 +15,29 @@ namespace FagrimBot.Music
 {
     public static class AudioManager
     {
+        private static readonly DiscordSocketClient client = ServiceManager.GetService<DiscordSocketClient>();
         private static readonly LavaNode lavaNode = ServiceManager.GetService<LavaNode>();
 
-        static AudioManager()
+        public static void InitAudio()
         {
             lavaNode.OnTrackEnded += OnTrackEnded;
+            client.UserVoiceStateUpdated += OnBotVoiceUpdate;
         }
 
-        public static LavaPlayer? GetPlayer(IGuild guild)
+        private static async Task OnBotVoiceUpdate(SocketUser user, SocketVoiceState before, SocketVoiceState after)
+        {
+            // if bot left channel (for whatever reason)
+            if (
+                user.Id == client.CurrentUser.Id && after.VoiceChannel == null
+                && user is SocketGuildUser guildUser)
+            {
+                LavaPlayer? player = GetPlayer(guildUser.Guild);
+                if (player == null) return;
+                await lavaNode.LeaveAsync(before.VoiceChannel);
+            }
+        }
+
+        public static LavaPlayer GetPlayer(IGuild guild)
         {
             try
             {
@@ -29,9 +45,14 @@ namespace FagrimBot.Music
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error while fetching Player for {guild.Name}: {ex.Message}");
-                return null;
+                throw new Exception($"Error while fetching Player for {guild.Name}: {ex.Message}");
             }
+        }
+
+        public static bool HasPlayerInVC(IGuild guild)
+        {
+            if (!lavaNode.HasPlayer(guild)) return false;
+            return GetPlayer(guild).VoiceChannel != null;
         }
 
         private static async Task OnTrackEnded(TrackEndedEventArgs args)
@@ -44,6 +65,8 @@ namespace FagrimBot.Music
             var player = args.Player;
             if (!player.Queue.TryDequeue(out var queueable))
             {
+                if (player.TextChannel == null) return;
+
                 await player.TextChannel.SendMessageAsync("Queue completed.");
                 return;
             }
@@ -73,6 +96,16 @@ namespace FagrimBot.Music
             return search.Tracks.FirstOrDefault();
         }
 
-        
+        public static async Task PlayOrQueue(this LavaPlayer player, LavaTrack track)
+        {
+            if(player.PlayerState == PlayerState.Playing)
+            {
+                player.Queue.Enqueue(track);
+            }
+            else
+            {
+                await player.PlayAsync(track);
+            }
+        }
     }
 }

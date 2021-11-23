@@ -2,7 +2,7 @@
 using Discord.Commands;
 using Discord.WebSocket;
 using FagrimBot.Core.Managers;
-using Google.Cloud.Firestore;
+using FagrimBot.Music;
 using Microsoft.Extensions.DependencyInjection;
 using Victoria;
 
@@ -55,6 +55,7 @@ namespace FagrimBot.Core
             await CommandManager.LoadCommandsAsync();
             await EventManager.LoadCommands();
             await DatabaseManager.LoadConnection();
+            AudioManager.InitAudio();
 
             await client.StartAsync();
             await client.LoginAsync(TokenType.Bot, ConfigManager.Config.Token);

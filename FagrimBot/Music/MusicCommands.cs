@@ -17,69 +17,49 @@ namespace FagrimBot.Music
     [Alias("m")]
     public class MusicCommands : ModuleBase<SocketCommandContext>
     {
-        LavaNode lavaNode = ServiceManager.GetService<LavaNode>();
 
         [Command("play")]
         public async Task PlayCommand([Remainder] string input)
         {
-            LavaPlayer? player = AudioManager.GetPlayer(Context.Guild);
-            if(player == null)
+            if(Context.User is not SocketGuildUser user)
             {
-                await ReplyAsync("I am not connected to your voice channel!");
+                await ReplyAsync("You cannot do that here.");
                 return;
             }
 
+            if(!AudioManager.HasPlayerInVC(Context.Guild))
+            {
+                var joinResult = await MusicPlayer.Join(Context.Guild, user);
+                if(!joinResult.success)
+                {
+                    await ReplyAsync(joinResult.message);
+                    return;
+                }
+            }
+
+            LavaPlayer player = AudioManager.GetPlayer(Context.Guild);
+
+            // check if bot isn't in same channel as sender
+            if(
+                user.VoiceChannel == null
+                || player.VoiceChannel == null
+                || user.VoiceChannel.Id != player.VoiceChannel.Id)
+            {
+                await ReplyAsync("You're not connected to the same Voice Channel as me.");
+            }
+
+            // determine whether tags or link
             bool isLink = Uri.IsWellFormedUriString(input, UriKind.Absolute);
             if(isLink)
             {
-                LavaTrack? track = await AudioHelper.Search(input);
-                if (track == null)
-                {
-                    await ReplyAsync($"Couldn't find anything for '{input}'.");
-                    return;
-                }
-
-                await player.PlayAsync(track);
-                await ReplyAsync($"Added '{track.Title}' to the queue.");
+                var res = await MusicPlayer.PlayLink(Context.Guild, input);
+                await ReplyAsync(res.message);
             }
             else
             {
                 List<string> tags = input.Split(' ').ToList();
-                if(tags.Count == 0 || tags == null)
-                {
-                    await ReplyAsync("Your input is invalid.");
-                    return;
-                }
-
-                List<MusicTrack>? tracks = await MusicDBManager.FetchMusicWithTags(tags);
-                if(tracks == null || tracks.Count == 0)
-                {
-                    await ReplyAsync($"No Results could be found for '{input}'.");
-                    return;
-                }
-
-                await player.StopAsync();
-                player.Queue.Clear();
-
-                foreach(MusicTrack mt in tracks)
-                {
-                    LavaTrack? lt = await AudioHelper.Search(mt.Url);
-                    if (lt == null) continue;
-                    if (player.PlayerState != PlayerState.Playing)
-                    {
-                        Console.WriteLine("PLAY");
-                        await player.PlayAsync(lt);
-                    }
-                    else
-                    {
-                        Console.WriteLine("ENQUEUE");
-                        player.Queue.Enqueue(lt);
-                    }
-                }
-
-
-                Console.WriteLine(player.Queue.Count);
-                await ReplyAsync($"Successfully enqueued {tracks.Count} Tracks with the tags '{input}'.");
+                var res = await MusicPlayer.PlayTags(Context, tags);
+                await ReplyAsync(res.message);
             }
         }
 
@@ -119,30 +99,27 @@ namespace FagrimBot.Music
             }
         }
 
-        [Command("join")]
-        public async Task JoinCommand()
+    
+
+        [Command("leave")]
+        public async Task LeaveCommand()
         {
-            if (lavaNode.HasPlayer(Context.Guild))
+            if (Context.User is not SocketGuildUser user)
             {
-                await ReplyAsync("Already connected to a VC.");
-                return;
-            }
-            if (Context.User is not SocketGuildUser user) return;
-            if(user.VoiceChannel == null)
-            {
-                await ReplyAsync("You must be connected to a voice channel.");
+                await ReplyAsync("You cannot do that here.");
                 return;
             }
 
-            try
+            // check if user is in same VC as player+
+            LavaPlayer player = AudioManager.GetPlayer(Context.Guild);
+            if(user.VoiceChannel != null && player.VoiceChannel.Id != user.VoiceChannel.Id)
             {
-                await lavaNode.JoinAsync(user.VoiceChannel, Context.Channel as ITextChannel);
-                await ReplyAsync($"Joined {user.VoiceChannel.Name}.");
+                await ReplyAsync("You have to be in the same VC as me.");
+                return;
             }
-            catch (Exception ex)
-            {
-                await ReplyAsync($"Error: {ex.Message}");
-            }
+
+            MusicPlayerResult res = await MusicPlayer.Leave(Context.Guild, user);
+            await ReplyAsync(res.message);
         }
     }
 }
