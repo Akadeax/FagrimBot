@@ -78,8 +78,11 @@ namespace FagrimBot.Music
             }
 
             await args.Player.PlayAsync(track);
-            await args.Player.TextChannel.SendMessageAsync(
-                $"{args.Reason}: {args.Track.Title}\nNow playing: {track.Title}");
+
+            if (player.TextChannel != null)
+            {
+                await args.Player.TextChannel.SendMessageAsync($"{args.Reason}: {args.Track.Title}\nNow playing: {track.Title}");
+            }
         }
     }
 

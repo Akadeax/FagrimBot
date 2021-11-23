@@ -17,36 +17,53 @@ namespace FagrimBot.Music
     [Alias("m")]
     public class MusicCommands : ModuleBase<SocketCommandContext>
     {
-
-        [Command("play")]
-        public async Task PlayCommand([Remainder] string input)
+        private async Task<bool> IsValidPlayCommand(string input)
         {
-            if(Context.User is not SocketGuildUser user)
+            if (Context.User is not SocketGuildUser user)
             {
                 await ReplyAsync("You cannot do that here.");
-                return;
+                return false;
             }
 
-            if(!AudioManager.HasPlayerInVC(Context.Guild))
+            if (!AudioManager.HasPlayerInVC(Context.Guild))
             {
                 var joinResult = await MusicPlayer.Join(Context.Guild, user);
-                if(!joinResult.success)
+                if (!joinResult.success)
                 {
                     await ReplyAsync(joinResult.message);
-                    return;
+                    return false;
                 }
             }
 
             LavaPlayer player = AudioManager.GetPlayer(Context.Guild);
 
             // check if bot isn't in same channel as sender
-            if(
+            if (
                 user.VoiceChannel == null
                 || player.VoiceChannel == null
                 || user.VoiceChannel.Id != player.VoiceChannel.Id)
             {
                 await ReplyAsync("You're not connected to the same Voice Channel as me.");
             }
+
+            return true;
+        }
+
+
+        [Command("playtags")]
+        public async Task PlayTagsCommand([Remainder] string input)
+        {
+            if (!await IsValidPlayCommand(input)) return;
+
+            List<string> tags = input.Split(' ').ToList();
+            var res = await MusicPlayer.PlayTags(Context, tags);
+            await ReplyAsync(res.message);
+        }
+
+        [Command("play")]
+        public async Task PlayCommand([Remainder] string input)
+        {
+            if (!await IsValidPlayCommand(input)) return;
 
             // determine whether tags or link
             bool isLink = Uri.IsWellFormedUriString(input, UriKind.Absolute);
@@ -57,8 +74,15 @@ namespace FagrimBot.Music
             }
             else
             {
-                List<string> tags = input.Split(' ').ToList();
-                var res = await MusicPlayer.PlayTags(Context, tags);
+                LavaNode lavaNode = ServiceManager.GetService<LavaNode>();
+                SearchResponse search = await lavaNode.SearchYouTubeAsync(input);
+                if(search.Tracks == null || search.Tracks.Count == 0) 
+                {
+                    await ReplyAsync($"Nothing could be found for your query '{input}'.");
+                    return;
+                }
+
+                var res = await MusicPlayer.PlayLink(Context.Guild, search.Tracks.First().Url);
                 await ReplyAsync(res.message);
             }
         }
@@ -119,6 +143,19 @@ namespace FagrimBot.Music
             }
 
             MusicPlayerResult res = await MusicPlayer.Leave(Context.Guild, user);
+            await ReplyAsync(res.message);
+        }
+
+        [Command("skip")]
+        public async Task Skip()
+        {
+            if (Context.User is not SocketGuildUser user)
+            {
+                await ReplyAsync("You cannot do that here.");
+                return;
+            }
+
+            MusicPlayerResult res = await MusicPlayer.Skip(Context.Guild, user);
             await ReplyAsync(res.message);
         }
     }

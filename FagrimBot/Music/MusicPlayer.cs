@@ -126,6 +126,25 @@ namespace FagrimBot.Music
             return Res(true, "Leaving.");
         }
 
+        public static async Task<MusicPlayerResult> Skip(IGuild guild, SocketGuildUser user)
+        {
+            if(!AudioManager.HasPlayerInVC(guild))
+            {
+                return Res(false, "I'm not connected to a VC at the moment.");
+            }
+            LavaPlayer player = AudioManager.GetPlayer(guild);
+            if(
+                player.VoiceChannel != null 
+                && user.VoiceChannel != null 
+                && player.VoiceChannel.Id == user.VoiceChannel.Id)
+            {
+                await player.SkipAsync();
+                return Res(true, "Skipping...");
+            }
+
+            return Res(false, "You need to be in the same VC as me for that.");
+        }
+
         private static MusicPlayerResult Res(bool success, string error)
         {
             return new MusicPlayerResult
