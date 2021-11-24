@@ -27,7 +27,7 @@ namespace FagrimBot.Core
                 IgnoreExtraArgs = true,
             });
 
-            var collection = new ServiceCollection()
+            IServiceCollection collection = new ServiceCollection()
                 .AddSingleton(client)
                 .AddSingleton(commandService)
                 .AddLavaNode(x =>
@@ -35,8 +35,7 @@ namespace FagrimBot.Core
                     x.SelfDeaf = true;
                     x.Hostname = "lava.link";
                     x.Port = 80;
-                })
-                as ServiceCollection;
+                });
 
 
             client.Log += log =>
@@ -46,7 +45,7 @@ namespace FagrimBot.Core
             };
 
             if (collection == null) throw new Exception("error initializing services");
-            ServiceManager.SetProvider(collection);
+            ServiceManager.SetProvider((ServiceCollection)collection);
         }
 
 
@@ -63,8 +62,8 @@ namespace FagrimBot.Core
             await DatabaseManager.LoadConnection();
             AudioManager.InitAudio();
 
-            await client.StartAsync();
             await client.LoginAsync(TokenType.Bot, ConfigManager.Config.Token);
+            await client.StartAsync();
 
             await Task.Delay(-1);
         }
