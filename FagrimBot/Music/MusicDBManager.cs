@@ -10,24 +10,31 @@ namespace FagrimBot.Music
     {
         private static FirestoreDb Database { get => DatabaseManager.Database; }
 
-        // return all tracks that contain all tags
-        public static async Task<List<MusicTrack>?> FetchMusicWithTags(List<string> tags)
+        public static async Task<List<MusicTrack>?> GetAllMusic()
         {
-            // have to first "WhereArrayContainsAny" and then filter further
             Query musicWithTagsQuery = Database.Collection("music");
 
             QuerySnapshot? querySnapshot = await musicWithTagsQuery.GetSnapshotAsync();
-            if(querySnapshot == null)
+            if (querySnapshot == null)
             {
                 Console.WriteLine("Error while trying to fetch music.");
                 return null;
             }
 
             List<MusicTrack> tracks = new();
-            foreach(DocumentSnapshot docSnap in querySnapshot)
+            foreach (DocumentSnapshot docSnap in querySnapshot)
             {
                 tracks.Add(docSnap.ConvertTo<MusicTrack>());
             }
+
+            return tracks;
+        }
+
+        // return all tracks that contain all tags
+        public static async Task<List<MusicTrack>?> FetchMusicWithTags(List<string> tags)
+        {
+            List<MusicTrack>? tracks = await GetAllMusic();
+            if (tracks == null) return null;
 
             return tracks.Where(x => x.Tags.ContainsAll(tags)).ToList();
         }
@@ -41,7 +48,7 @@ namespace FagrimBot.Music
 
             if (docSnapshot.Exists)
             {
-                Console.WriteLine("IS NOT FOOKIN NULL INNIT");
+                Console.WriteLine("Song already found");
                 return true;
             }
 

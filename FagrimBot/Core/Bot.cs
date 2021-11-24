@@ -39,6 +39,12 @@ namespace FagrimBot.Core
                 as ServiceCollection;
 
 
+            client.Log += log =>
+            {
+                Console.WriteLine(log.ToString());
+                return Task.CompletedTask;
+            };
+
             if (collection == null) throw new Exception("error initializing services");
             ServiceManager.SetProvider(collection);
         }

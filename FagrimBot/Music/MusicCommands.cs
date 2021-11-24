@@ -1,14 +1,7 @@
-﻿using Discord;
-using Discord.Commands;
+﻿using Discord.Commands;
 using Discord.WebSocket;
 using FagrimBot.Core.Managers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Victoria;
-using Victoria.Enums;
 using Victoria.Responses.Search;
 
 namespace FagrimBot.Music
@@ -55,7 +48,7 @@ namespace FagrimBot.Music
         {
             if (!await IsValidPlayCommand(input)) return;
 
-            List<string> tags = input.Split(' ').ToList();
+            List<string> tags = input.ToLower().Split(' ').ToList();
             var res = await MusicPlayer.PlayTags(Context, tags);
             await ReplyAsync(res.message);
         }
@@ -147,7 +140,7 @@ namespace FagrimBot.Music
         }
 
         [Command("skip")]
-        public async Task Skip()
+        public async Task SkipCommand()
         {
             if (Context.User is not SocketGuildUser user)
             {
@@ -158,5 +151,63 @@ namespace FagrimBot.Music
             MusicPlayerResult res = await MusicPlayer.Skip(Context.Guild, user);
             await ReplyAsync(res.message);
         }
+
+        [Command("stop")]
+        public async Task StopCommand()
+        {
+            if (Context.User is not SocketGuildUser user)
+            {
+                await ReplyAsync("You cannot do that here.");
+                return;
+            }
+
+            MusicPlayerResult res = await MusicPlayer.Stop(Context.Guild, user);
+            await ReplyAsync(res.message);
+        }
+
+
+        [Command("list")]
+        public async Task ListCommand()
+        {
+            MusicPlayerResult res = await MusicPlayer.ListAsString();
+            if(!res.success)
+            {
+                await ReplyAsync(res.message);
+                return;
+            }
+
+            const int MESSAGE_LIMIT = 1800;
+            int splitAmount = res.message.Length / MESSAGE_LIMIT + 1;
+
+            List<string> splits = new();
+
+            // split up big string into 1800 units (cuz of discord send limit)
+            string leftString = res.message;
+            for(int i = 0; i < splitAmount; i++)
+            {
+                // get length of current split (max MESSAGE_LIMIT + a little bit)
+                int splitLen = Math.Min(MESSAGE_LIMIT, leftString.Length);
+
+                // find next linebreak so string doesn't get split between lines
+                while(leftString[splitLen - 1] != '\n')
+                {
+                    splitLen++;
+                }
+
+                splits.Add(leftString[0..splitLen]);
+                // remove already added part of string from leftString
+                leftString = leftString[splitLen..];
+            }
+
+            foreach (string s in splits)
+            {
+                Console.WriteLine(s.Length);
+            }
+            foreach (string s in splits)
+            {
+                await ReplyAsync(s);
+            }
+        }
+
     }
 }
