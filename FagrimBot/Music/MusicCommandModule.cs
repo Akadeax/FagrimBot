@@ -119,8 +119,14 @@ namespace FagrimBot.Music
             string situation,
             string location,
             string mood,
-            [Remainder] string tagString = null)
+            [Remainder] string? tagString = null)
         {
+            if(Context.User.Id != 173053434239385600)
+            {
+                await ReplyAsync("nope");
+                return;
+            }
+
             List<string>? tags = new();
             if (!string.IsNullOrEmpty(tagString))
             {
