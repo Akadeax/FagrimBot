@@ -105,8 +105,8 @@ namespace FagrimBot.Music
 
 
             await ReplyAsync("working on it...");
-            bool songExists = await MusicDBManager.AddToMusic(new MusicTrack(track.Title, url, tags));
-            if(songExists)
+            bool success = await MusicDBManager.AddToMusic(new MusicTrack(track.Title, url, tags));
+            if(!success)
             {
                 await ReplyAsync($"The URL '{track.Url}' already exists in the music library.");
             }
@@ -181,7 +181,7 @@ namespace FagrimBot.Music
 
             List<string> splits = new();
 
-            // split up big string into 1800 units (cuz of discord send limit)
+            // split up big string into units (cuz of discord send limit)
             string leftString = res.message;
             for(int i = 0; i < splitAmount; i++)
             {

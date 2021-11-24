@@ -42,18 +42,31 @@ namespace FagrimBot.Music
         // returns exists already
         public static async Task<bool> AddToMusic(MusicTrack track)
         {
-            CollectionReference coll = Database.Collection("music");
-            DocumentReference docRef = coll.Document(track.Url.GetHashCode().ToString());
-            DocumentSnapshot docSnapshot = await docRef.GetSnapshotAsync();
+            CollectionReference music = Database.Collection("music");
 
-            if (docSnapshot.Exists)
+            // check if track already exists
+            MusicTrack? existingTrack = await GetDBTrackByUrl(track.Url);
+            if (existingTrack != null)
             {
-                Console.WriteLine("Song already found");
-                return true;
+                Console.WriteLine("Track already exists");
+                return false;
             }
 
+            DocumentReference docRef = music.Document();
             await docRef.SetAsync(track);
             return false;
+        }
+
+        public static async Task<MusicTrack?> GetDBTrackByUrl(String Url)
+        {
+            CollectionReference music = Database.Collection("music");
+            QuerySnapshot matchingUrlDocs = await music.WhereEqualTo("Url", Url).GetSnapshotAsync();
+            if (matchingUrlDocs.Documents.Count == 0)
+            {
+                return null;
+            }
+
+            return matchingUrlDocs[0].ConvertTo<MusicTrack>();
         }
     }
 }

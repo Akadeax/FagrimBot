@@ -31,8 +31,6 @@ namespace FagrimBot.Music
                 user.Id == client.CurrentUser.Id && after.VoiceChannel == null
                 && user is SocketGuildUser guildUser)
             {
-                LavaPlayer? player = GetPlayer(guildUser.Guild);
-                if (player == null) return;
                 await lavaNode.LeaveAsync(before.VoiceChannel);
             }
         }
