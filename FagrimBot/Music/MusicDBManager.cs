@@ -8,13 +8,13 @@ namespace FagrimBot.Music
 {
     public static class MusicDBManager
     {
-        private static FirestoreDb Database { get => DatabaseManager.Database; }
+        public static FirestoreDb Database { get => DatabaseManager.Database; }
 
-        public static async Task<List<MusicTrack>?> GetAllMusic()
+        public static async Task<List<MusicTrack>?> FetchAll()
         {
-            Query musicWithTagsQuery = Database.Collection("music");
+            Query musicQuery = Database.Collection("music");
 
-            QuerySnapshot? querySnapshot = await musicWithTagsQuery.GetSnapshotAsync();
+            QuerySnapshot? querySnapshot = await musicQuery.GetSnapshotAsync();
             if (querySnapshot == null)
             {
                 Console.WriteLine("Error while trying to fetch music.");
@@ -30,22 +30,30 @@ namespace FagrimBot.Music
             return tracks;
         }
 
-        // return all tracks that contain all tags
-        public static async Task<List<MusicTrack>?> FetchMusicWithTags(List<string> tags)
+        public static async Task<List<MusicTrack>?> FetchWithSetting(TrackSetting setting)
         {
-            List<MusicTrack>? tracks = await GetAllMusic();
-            if (tracks == null) return null;
+            List<MusicTrack>? trackList = await FetchAll();
+            if (trackList == null) return null;
 
-            return tracks.Where(x => x.Tags.ContainsAll(tags)).ToList();
+            List<MusicTrack> newTracks = new();
+            foreach(MusicTrack track in trackList)
+            {
+                if (track.Setting != setting) continue;
+                // if tags are given, check whether all of them are fulfilled
+                if (setting.Tags.Count != 0 && !track.Setting.Tags.ContainsAll(setting.Tags)) continue;
+
+                newTracks.Add(track);
+            }
+            return newTracks;
         }
 
         // returns exists already
-        public static async Task<bool> AddToMusic(MusicTrack track)
+        public static async Task<bool> Add(MusicTrack track)
         {
             CollectionReference music = Database.Collection("music");
 
             // check if track already exists
-            MusicTrack? existingTrack = await GetDBTrackByUrl(track.Url);
+            MusicTrack? existingTrack = await GetByUrl(track.Url);
             if (existingTrack != null)
             {
                 Console.WriteLine("Track already exists");
@@ -54,10 +62,10 @@ namespace FagrimBot.Music
 
             DocumentReference docRef = music.Document();
             await docRef.SetAsync(track);
-            return false;
+            return true;
         }
 
-        public static async Task<MusicTrack?> GetDBTrackByUrl(String Url)
+        public static async Task<MusicTrack?> GetByUrl(string Url)
         {
             CollectionReference music = Database.Collection("music");
             QuerySnapshot matchingUrlDocs = await music.WhereEqualTo("Url", Url).GetSnapshotAsync();

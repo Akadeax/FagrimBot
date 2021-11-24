@@ -15,7 +15,7 @@ namespace FagrimBot.Music
 {
     public static class MusicPlayer
     {
-        public static async Task<MusicPlayerResult> PlayTags(SocketCommandContext context, List<string> tags)
+        public static async Task<MusicPlayerResult> PlaySetting(SocketCommandContext context, TrackSetting setting)
         {
             LavaPlayer? lavaPlayer = AudioManager.GetPlayer(context.Guild);
             if(lavaPlayer == null)
@@ -23,16 +23,11 @@ namespace FagrimBot.Music
                 return Res(false, "I'm not connected to a voice channel.");
             }
 
-            if(tags == null || tags.Count == 0)
-            {
-                return Res(false, "That isn't valid syntax.");
-            }
-
             // get tracks from DB
-            List<MusicTrack>? tracks = await MusicDBManager.FetchMusicWithTags(tags);
+            List<MusicTrack>? tracks = await MusicDBManager.FetchWithSetting(setting);
             if(tracks == null || tracks.Count == 0)
             {
-                return Res(false, "No Results could be found that match your tags.");
+                return Res(false, "No Results could be found that match your setting.");
             }
 
             tracks.Shuffle();
@@ -48,11 +43,7 @@ namespace FagrimBot.Music
                   foreach (MusicTrack musicTrack in tracks)
                   {
                       LavaTrack? lavaTrack = await AudioHelper.Search(musicTrack.Url);
-                      if (lavaTrack == null)
-                      {
-                          Console.WriteLine($"Failed to locate linked track: {musicTrack.Url}");
-                          continue;
-                      }
+                      if (lavaTrack == null) continue;
 
                       await lavaPlayer.PlayOrQueue(lavaTrack);
                   }
@@ -169,25 +160,6 @@ namespace FagrimBot.Music
 
             return Res(false, "You need to be in the same VC as me for that.");
         }
-
-
-        public static async Task<MusicPlayerResult> ListAsString()
-        {
-            List<MusicTrack>? tracks = await MusicDBManager.GetAllMusic();
-            if (tracks == null || tracks.Count == 0)
-            {
-                return Res(false, "Couldn't fetch any Music.");
-            }
-
-            StringBuilder output = new();
-            for (int i = 0; i < tracks.Count; i++)
-            {
-                output.Append($"[{i + 1}] *{tracks[i].Title}* ({string.Join(", ", tracks[i].Tags)})\n");
-            }
-            Console.WriteLine(output.Length);
-            return Res(true, output.ToString());
-        }
-      
 
         private static MusicPlayerResult Res(bool success, string error)
         {

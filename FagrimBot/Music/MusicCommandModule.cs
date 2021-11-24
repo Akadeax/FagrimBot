@@ -1,6 +1,8 @@
-﻿using Discord.Commands;
+﻿using Discord;
+using Discord.Commands;
 using Discord.WebSocket;
 using FagrimBot.Core.Managers;
+using System.Text;
 using Victoria;
 using Victoria.Responses.Search;
 
@@ -8,9 +10,10 @@ namespace FagrimBot.Music
 {
     [Group("music")]
     [Alias("m")]
-    public class MusicCommands : ModuleBase<SocketCommandContext>
+    public class MusicCommandModule : ModuleBase<SocketCommandContext>
     {
-        private async Task<bool> IsValidPlayCommand(string input)
+        #region Play
+        private async Task<bool> IsValidPlayCommand()
         {
             if (Context.User is not SocketGuildUser user)
             {
@@ -43,24 +46,52 @@ namespace FagrimBot.Music
         }
 
 
-        [Command("playtags")]
-        public async Task PlayTagsCommand([Remainder] string input)
-        {
-            if (!await IsValidPlayCommand(input)) return;
 
-            List<string> tags = input.ToLower().Split(' ').ToList();
-            var res = await MusicPlayer.PlayTags(Context, tags);
+        [Command("playsetting")]
+        public async Task PlaySetting(
+            string situation,
+            string location,
+            string mood,
+            [Remainder] string tagString = "")
+        {
+            if (!await IsValidPlayCommand()) return;
+
+            List<string>? tags = new();
+            if(!string.IsNullOrEmpty(tagString))
+            {
+                tags = tagString.ToLower().Split(' ').ToList();
+            }
+
+
+            if (
+                !Enum.TryParse(situation.ToLower(), out TrackSituation trackSituation)
+                || !Enum.TryParse(location.ToLower(), out TrackLocation trackLocation)
+                || !Enum.TryParse(mood.ToLower(), out TrackMood trackMood))
+            {
+                await ReplyAsync("Invalid format!");
+                return;
+            }
+
+            TrackSetting setting = new()
+            {
+                Situation = trackSituation,
+                Location = trackLocation,
+                Mood = trackMood,
+                Tags = tags,
+            };
+
+            var res = await MusicPlayer.PlaySetting(Context, setting);
             await ReplyAsync(res.message);
         }
 
         [Command("play")]
         public async Task PlayCommand([Remainder] string input)
         {
-            if (!await IsValidPlayCommand(input)) return;
+            if (!await IsValidPlayCommand()) return;
 
             // determine whether tags or link
             bool isLink = Uri.IsWellFormedUriString(input, UriKind.Absolute);
-            if(isLink)
+            if (isLink)
             {
                 var res = await MusicPlayer.PlayLink(Context.Guild, input);
                 await ReplyAsync(res.message);
@@ -69,7 +100,7 @@ namespace FagrimBot.Music
             {
                 LavaNode lavaNode = ServiceManager.GetService<LavaNode>();
                 SearchResponse search = await lavaNode.SearchYouTubeAsync(input);
-                if(search.Tracks == null || search.Tracks.Count == 0) 
+                if (search.Tracks == null || search.Tracks.Count == 0)
                 {
                     await ReplyAsync($"Nothing could be found for your query '{input}'.");
                     return;
@@ -79,25 +110,49 @@ namespace FagrimBot.Music
                 await ReplyAsync(res.message);
             }
         }
+        #endregion
+
 
         [Command("add")]
-        public async Task AddCommand(string url, [Remainder] string tagString)
+        public async Task AddCommand(
+            string url,
+            string situation,
+            string location,
+            string mood,
+            [Remainder] string tagString = null)
         {
-            List<string> tags = tagString.Split(' ').ToList();
-            if(tags.Count == 0)
+            List<string>? tags = new();
+            if (!string.IsNullOrEmpty(tagString))
             {
-                await ReplyAsync("Invalid Syntax! No valid tags have been given.");
+                tags = tagString.ToLower().Split(' ').ToList();
+            }
+
+
+            if (
+                !Enum.TryParse(situation.ToLower(), out TrackSituation trackSituation)
+                || !Enum.TryParse(location.ToLower(), out TrackLocation trackLocation)
+                || !Enum.TryParse(mood.ToLower(), out TrackMood trackMood))
+            {
+                await ReplyAsync("Invalid format!");
                 return;
             }
 
-            if(!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            TrackSetting setting = new()
+            {
+                Situation = trackSituation,
+                Location = trackLocation,
+                Mood = trackMood,
+                Tags = tags,
+            };
+
+            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
             {
                 await ReplyAsync("Invalid Syntax! The given input isn't a link.");
                 return;
             }
 
             LavaTrack? track = await AudioHelper.Search(url);
-            if(track == null)
+            if (track == null)
             {
                 await ReplyAsync("Invalid Syntax! The given link is invalid.");
                 return;
@@ -105,8 +160,8 @@ namespace FagrimBot.Music
 
 
             await ReplyAsync("working on it...");
-            bool success = await MusicDBManager.AddToMusic(new MusicTrack(track.Title, url, tags));
-            if(!success)
+            bool success = await MusicDBManager.Add(new MusicTrack(track.Title, track.Url, setting));
+            if (!success)
             {
                 await ReplyAsync($"The URL '{track.Url}' already exists in the music library.");
             }
@@ -116,7 +171,6 @@ namespace FagrimBot.Music
             }
         }
 
-    
 
         [Command("leave")]
         public async Task LeaveCommand()
@@ -129,7 +183,7 @@ namespace FagrimBot.Music
 
             // check if user is in same VC as player+
             LavaPlayer player = AudioManager.GetPlayer(Context.Guild);
-            if(user.VoiceChannel != null && player.VoiceChannel.Id != user.VoiceChannel.Id)
+            if (user.VoiceChannel != null && player.VoiceChannel.Id != user.VoiceChannel.Id)
             {
                 await ReplyAsync("You have to be in the same VC as me.");
                 return;
@@ -164,50 +218,5 @@ namespace FagrimBot.Music
             MusicPlayerResult res = await MusicPlayer.Stop(Context.Guild, user);
             await ReplyAsync(res.message);
         }
-
-
-        [Command("list")]
-        public async Task ListCommand()
-        {
-            MusicPlayerResult res = await MusicPlayer.ListAsString();
-            if(!res.success)
-            {
-                await ReplyAsync(res.message);
-                return;
-            }
-
-            const int MESSAGE_LIMIT = 1800;
-            int splitAmount = res.message.Length / MESSAGE_LIMIT + 1;
-
-            List<string> splits = new();
-
-            // split up big string into units (cuz of discord send limit)
-            string leftString = res.message;
-            for(int i = 0; i < splitAmount; i++)
-            {
-                // get length of current split (max MESSAGE_LIMIT + a little bit)
-                int splitLen = Math.Min(MESSAGE_LIMIT, leftString.Length);
-
-                // find next linebreak so string doesn't get split between lines
-                while(leftString[splitLen - 1] != '\n')
-                {
-                    splitLen++;
-                }
-
-                splits.Add(leftString[0..splitLen]);
-                // remove already added part of string from leftString
-                leftString = leftString[splitLen..];
-            }
-
-            foreach (string s in splits)
-            {
-                Console.WriteLine(s.Length);
-            }
-            foreach (string s in splits)
-            {
-                await ReplyAsync(s);
-            }
-        }
-
     }
 }

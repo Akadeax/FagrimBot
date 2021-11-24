@@ -27,9 +27,7 @@ namespace FagrimBot.Music
         private static async Task OnBotVoiceUpdate(SocketUser user, SocketVoiceState before, SocketVoiceState after)
         {
             // if bot left channel (for whatever reason)
-            if (
-                user.Id == client.CurrentUser.Id && after.VoiceChannel == null
-                && user is SocketGuildUser guildUser)
+            if (user.Id == client.CurrentUser.Id && after.VoiceChannel == null)
             {
                 await lavaNode.LeaveAsync(before.VoiceChannel);
             }
@@ -94,7 +92,13 @@ namespace FagrimBot.Music
                         ? await lavaNode.SearchAsync(SearchType.Direct, query)
                         : await lavaNode.SearchYouTubeAsync(query);
 
-            return search.Tracks.FirstOrDefault();
+            if (search.Status != SearchStatus.TrackLoaded)
+            {
+                Console.WriteLine("Failed to load: " + search.Status);
+                return null;
+            }
+
+            return search.Tracks.First();
         }
 
         public static async Task PlayOrQueue(this LavaPlayer player, LavaTrack track)
